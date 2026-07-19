@@ -1,14 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import {
-  FileText,
-  FileSpreadsheet,
-  FileType,
-  Loader2,
-  Clock,
-  X,
-} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileText, FileSpreadsheet, FileType, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Params = Record<string, string>;
@@ -16,6 +9,14 @@ type Params = Record<string, string>;
 // Once an export runs this long, show a "still working" hint (exports scrape
 // every listed company, so they can take a while on a slow connection).
 const SLOW_HINT_AFTER_SECONDS = 15;
+
+/** Format elapsed seconds as `m:ss` past a minute, otherwise `Ns`. */
+function formatElapsed(total: number): string {
+  if (total < 60) return `${total}s`;
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
 
 // Order: Excel, then CSV, then PDF.
 const ALL_FORMATS = [
@@ -36,12 +37,15 @@ export default function ExportButtons({
   params,
   disabled,
   formats,
+  onSlowChange,
 }: {
   source: "prices" | "industry" | "company";
   params: Params;
   disabled?: boolean;
   /** Which formats to show; defaults to all (Excel, CSV, PDF). */
   formats?: FormatKey[];
+  /** Notifies the parent when a slow export is in progress (to show a hint). */
+  onSlowChange?: (active: boolean) => void;
 }) {
   const shown = formats
     ? ALL_FORMATS.filter((f) => formats.includes(f.key))
@@ -49,6 +53,13 @@ export default function ExportButtons({
   const [busy, setBusy] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const controllerRef = useRef<AbortController | null>(null);
+
+  // Report the "slow export running" state up so the view can show a hint.
+  const slow = busy !== null && elapsed >= SLOW_HINT_AFTER_SECONDS;
+  useEffect(() => {
+    onSlowChange?.(slow);
+  }, [slow, onSlowChange]);
+  useEffect(() => () => onSlowChange?.(false), [onSlowChange]);
 
   async function download(format: string) {
     const controller = new AbortController();
@@ -95,40 +106,28 @@ export default function ExportButtons({
     controllerRef.current?.abort();
   }
 
-  const showSlowHint = busy !== null && elapsed >= SLOW_HINT_AFTER_SECONDS;
-
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Export:</span>
-        {shown.map(({ key, label, Icon }) => (
-          <Button
-            key={key}
-            variant="outline"
-            size="sm"
-            onClick={() => download(key)}
-            disabled={disabled || busy !== null}
-          >
-            {busy === key ? <Loader2 className="animate-spin" /> : <Icon />}
-            {busy === key && elapsed > 0 ? `${label} ${elapsed}s` : label}
-          </Button>
-        ))}
-        {busy !== null && (
-          <Button variant="destructive" size="sm" onClick={cancel}>
-            <X />
-            Cancel
-          </Button>
-        )}
-      </div>
-      {showSlowHint && (
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            Still working — this export pulls data for every listed company, so
-            it can take up to a minute depending on your network speed. You can
-            cancel anytime.
-          </span>
-        </p>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-muted-foreground">Export:</span>
+      {shown.map(({ key, label, Icon }) => (
+        <Button
+          key={key}
+          variant="outline"
+          size="sm"
+          onClick={() => download(key)}
+          disabled={disabled || busy !== null}
+        >
+          {busy === key ? <Loader2 className="animate-spin" /> : <Icon />}
+          {busy === key && elapsed > 0
+            ? `${label} ${formatElapsed(elapsed)}`
+            : label}
+        </Button>
+      ))}
+      {busy !== null && (
+        <Button variant="destructive" size="sm" onClick={cancel}>
+          <X />
+          Cancel
+        </Button>
       )}
     </div>
   );

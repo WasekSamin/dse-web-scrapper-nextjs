@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -17,7 +18,7 @@ import {
 import { useCompany } from "@/hooks/useDseData";
 import CompanySearch from "@/components/CompanySearch";
 import ExportButtons from "@/components/ExportButtons";
-import { ErrorState } from "@/components/views/states";
+import { ErrorState, SlowExportHint } from "@/components/views/states";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,7 @@ function isUrl(v: string) {
 
 export default function CompanyView({ code }: { code: string }) {
   const { data, isLoading, isError, error } = useCompany(code);
+  const [slowExport, setSlowExport] = useState(false);
   const dir = data?.headline.direction ?? "flat";
 
   return (
@@ -58,8 +60,15 @@ export default function CompanyView({ code }: { code: string }) {
         </Button>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CompanySearch initial={code} className="w-full sm:max-w-sm" />
-          {data && <ExportButtons source="company" params={{ code }} />}
+          {data && (
+            <ExportButtons
+              source="company"
+              params={{ code }}
+              onSlowChange={setSlowExport}
+            />
+          )}
         </div>
+        {slowExport && <SlowExportHint />}
       </div>
 
       {isLoading && (

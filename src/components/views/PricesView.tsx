@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { usePrices } from "@/hooks/useDseData";
 import { PRICE_VIEWS } from "@/lib/views";
@@ -7,12 +8,13 @@ import type { PriceView } from "@/lib/views";
 import DataTable from "@/components/DataTable";
 import ExportButtons from "@/components/ExportButtons";
 import PriceTabs from "@/components/views/PriceTabs";
-import { ErrorState, TableSkeleton } from "@/components/views/states";
+import { ErrorState, SlowExportHint, TableSkeleton } from "@/components/views/states";
 import { Button } from "@/components/ui/button";
 
 export default function PricesView({ view }: { view: PriceView }) {
   const { data, isLoading, isFetching, isError, error, refetch } =
     usePrices(view);
+  const [slowExport, setSlowExport] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -43,9 +45,12 @@ export default function PricesView({ view }: { view: PriceView }) {
             params={{ view }}
             disabled={!data}
             formats={["xlsx", "csv"]}
+            onSlowChange={setSlowExport}
           />
         </div>
       </div>
+
+      {slowExport && <SlowExportHint />}
 
       <PriceTabs current={view} />
 

@@ -1,6 +1,20 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+
+/** Highlighted badge shown while a slow (enriched) export is running. */
+export function SlowExportHint() {
+  return (
+    <div className="inline-flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900 shadow-sm">
+      <Clock className="mt-0.5 h-4 w-4 shrink-0 animate-pulse" />
+      <span>
+        Still working — this export pulls data for every listed company, so it
+        can take up to a minute depending on your network speed. You can cancel
+        anytime.
+      </span>
+    </div>
+  );
+}
 
 export function TableSkeleton({ rows = 12 }: { rows?: number }) {
   return (

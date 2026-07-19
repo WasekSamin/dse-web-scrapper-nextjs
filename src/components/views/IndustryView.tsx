@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { useIndustries, useIndustryTable } from "@/hooks/useDseData";
 import DataTable from "@/components/DataTable";
 import ExportButtons from "@/components/ExportButtons";
-import { ErrorState, TableSkeleton } from "@/components/views/states";
+import { ErrorState, SlowExportHint, TableSkeleton } from "@/components/views/states";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -18,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function IndustryView({ area }: { area?: string }) {
   const router = useRouter();
+  const [slowExport, setSlowExport] = useState(false);
   const { data: industries } = useIndustries();
   const {
     data: table,
@@ -52,7 +54,11 @@ export default function IndustryView({ area }: { area?: string }) {
               <RefreshCw className={isFetching ? "animate-spin" : ""} />
               Refresh
             </Button>
-            <ExportButtons source="industry" params={{ area: area! }} />
+            <ExportButtons
+              source="industry"
+              params={{ area: area! }}
+              onSlowChange={setSlowExport}
+            />
           </div>
         )}
       </div>
@@ -74,6 +80,8 @@ export default function IndustryView({ area }: { area?: string }) {
           </SelectContent>
         </Select>
       </div>
+
+      {slowExport && <SlowExportHint />}
 
       {!area && (
         <Card>

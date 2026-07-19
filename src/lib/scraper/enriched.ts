@@ -24,8 +24,7 @@ export interface EnrichedRow {
 }
 
 /** Build a label→value map from the #company overview rows. */
-function fieldMap(html: string): Record<string, string> {
-  const $ = cheerio.load(html);
+function fieldMap($: cheerio.CheerioAPI): Record<string, string> {
   const map: Record<string, string> = {};
   $("#company tr").each((_, tr) => {
     const cells = $(tr)
@@ -49,8 +48,8 @@ function lookup(map: Record<string, string>, re: RegExp): string {
 }
 
 /** Extract up to three shareholding-percentage snapshots from the page text. */
-function parseShareholding(html: string): ShareholdingPeriod[] {
-  const text = cheerio.load(html)("body").text().replace(/ /g, " ");
+function parseShareholding(bodyText: string): ShareholdingPeriod[] {
+  const text = bodyText.replace(/ /g, " ");
   const re =
     /Share Holding Percentage\s*\[as on ([^\]]+)\][\s\S]{0,400}?Sponsor\/Director:\s*([\d.]+)[\s\S]{0,60}?Govt:\s*([\d.]+)[\s\S]{0,60}?Institute:\s*([\d.]+)[\s\S]{0,60}?Foreign:\s*([\d.]+)[\s\S]{0,60}?Public:\s*([\d.]+)/g;
   const out: ShareholdingPeriod[] = [];
@@ -80,14 +79,17 @@ export function getCompanyRow(code: string): Promise<EnrichedRow> {
         const html = await fetchHtml(
           `/displayCompany.php?name=${encodeURIComponent(code)}`
         );
-        const map = fieldMap(html);
+        // Parse the HTML once and reuse it for both the field map and the
+        // shareholding block (previously parsed twice per company).
+        const $ = cheerio.load(html);
+        const map = fieldMap($);
         return {
           code,
           outstandingSecurities: lookup(map, /Outstanding Securities/i),
           movingRange52w: lookup(map, /Moving Range/i),
           volume: lookup(map, /Day'?s Volume/i),
           freeFloatCap: lookup(map, /Free Float/i),
-          shareholding: parseShareholding(html),
+          shareholding: parseShareholding($("body").text()),
         };
       } catch {
         return {
@@ -127,7 +129,7 @@ async function mapPool<T, R>(
 /** Enrich a list of trading codes (bounded concurrency, per-company cache). */
 export function getEnrichedRows(
   codes: string[],
-  concurrency = 10
+  concurrency = 20
 ): Promise<EnrichedRow[]> {
   return mapPool(codes, concurrency, (code) => getCompanyRow(code));
 }

@@ -12,7 +12,7 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
   keepAlive: true,
   keepAliveMsecs: 15_000,
-  maxSockets: 24,
+  maxSockets: 32,
 });
 
 const client: AxiosInstance = axios.create({
