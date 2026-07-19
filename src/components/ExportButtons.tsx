@@ -10,12 +10,14 @@ type Params = Record<string, string>;
 // every listed company, so they can take a while on a slow connection).
 const SLOW_HINT_AFTER_SECONDS = 15;
 
-/** Format elapsed seconds as `m:ss` past a minute, otherwise `Ns`. */
+/** Format elapsed seconds: `12s`, `1m:12s`, or `1h:1m:12s`. */
 function formatElapsed(total: number): string {
-  if (total < 60) return `${total}s`;
-  const minutes = Math.floor(total / 60);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  if (hours > 0) return `${hours}h:${minutes}m:${seconds}s`;
+  if (minutes > 0) return `${minutes}m:${seconds}s`;
+  return `${seconds}s`;
 }
 
 // Order: Excel, then CSV, then PDF.
