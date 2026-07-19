@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: dse-web-scrapper
+    name: dse-scrapper
     runtime: node
     plan: free
     # --include=dev ensures build-only devDependencies (typescript, tailwind, …)
