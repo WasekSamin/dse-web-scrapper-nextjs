@@ -57,7 +57,7 @@ export const priceResponseSchema = scrapedTableSchema.extend({
 });
 
 export const companyListSchema = z.object({
-  companies: z.array(z.string()),
+  companies: z.array(z.object({ code: z.string(), market: marketSchema })),
 });
 
 export const industryListSchema = z.object({

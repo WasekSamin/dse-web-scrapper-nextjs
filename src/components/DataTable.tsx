@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -80,12 +81,21 @@ export default function DataTable({
     return out;
   }, [rows, codes, query, sortCol, asc]);
 
+  // Three-state cycle per column: ascending → descending → unsorted.
   function sortBy(i: number) {
-    if (sortCol === i) setAsc((a) => !a);
-    else {
+    if (sortCol !== i) {
       setSortCol(i);
       setAsc(true);
+    } else if (asc) {
+      setAsc(false);
+    } else {
+      clearSort();
     }
+  }
+
+  function clearSort() {
+    setSortCol(null);
+    setAsc(true);
   }
 
   return (
@@ -103,6 +113,17 @@ export default function DataTable({
         <span className="whitespace-nowrap text-sm text-muted-foreground">
           {filtered.length} / {rows.length} rows
         </span>
+        {sortCol !== null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSort}
+            className="text-muted-foreground"
+          >
+            <X />
+            Clear sort
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border bg-card">
