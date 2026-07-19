@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import { fetchHtml } from "./client";
 import { cleanText } from "./parseTable";
 import { cached } from "@/lib/cache";
+import { MARKETS, type Market } from "@/lib/markets";
 
 /** One shareholding-percentage snapshot for a company. */
 export interface ShareholdingPeriod {
@@ -71,14 +72,15 @@ function parseShareholding(bodyText: string): ShareholdingPeriod[] {
  * Scrape one company's detail page into an enriched row. Cached ~5 min. Never
  * throws — a page that fails (e.g. some bonds) yields a row with just the code.
  */
-export function getCompanyRow(code: string): Promise<EnrichedRow> {
+export function getCompanyRow(
+  code: string,
+  market: Market = "main"
+): Promise<EnrichedRow> {
   return cached(
-    `enriched:${code}`,
+    `enriched:${market}:${code}`,
     async () => {
       try {
-        const html = await fetchHtml(
-          `/displayCompany.php?name=${encodeURIComponent(code)}`
-        );
+        const html = await fetchHtml(MARKETS[market].companyUrl(code));
         // Parse the HTML once and reuse it for both the field map and the
         // shareholding block (previously parsed twice per company).
         const $ = cheerio.load(html);
@@ -129,7 +131,8 @@ async function mapPool<T, R>(
 /** Enrich a list of trading codes (bounded concurrency, per-company cache). */
 export function getEnrichedRows(
   codes: string[],
+  market: Market = "main",
   concurrency = 20
 ): Promise<EnrichedRow[]> {
-  return mapPool(codes, concurrency, (code) => getCompanyRow(code));
+  return mapPool(codes, concurrency, (code) => getCompanyRow(code, market));
 }

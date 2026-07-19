@@ -3,16 +3,28 @@
 // Zod schemas without pulling the scraper into the browser bundle.
 
 export const PRICE_VIEWS = {
-  latest: { label: "By Trade Code", path: "/latest_share_price_scroll_l.php" },
-  change: { label: "By Change", path: "/latest_share_price_scroll_by_change.php" },
-  value: { label: "By Value", path: "/latest_share_price_scroll_by_value.php" },
-  volume: { label: "By Volume", path: "/latest_share_price_scroll_by_volume.php" },
-  ltp: { label: "By LTP", path: "/latest_share_price_scroll_by_ltp.php" },
-  group: { label: "By Group", path: "/latest_share_price_scroll_group.php" },
-  alpha: { label: "Alphabetical", path: "/latest_share_price_alpha.php" },
+  latest: { label: "By Trade Code", path: "/latest_share_price_scroll_l.php", market: "main" },
+  change: { label: "By Change", path: "/latest_share_price_scroll_by_change.php", market: "main" },
+  value: { label: "By Value", path: "/latest_share_price_scroll_by_value.php", market: "main" },
+  volume: { label: "By Volume", path: "/latest_share_price_scroll_by_volume.php", market: "main" },
+  ltp: { label: "By LTP", path: "/latest_share_price_scroll_by_ltp.php", market: "main" },
+  group: { label: "By Group", path: "/latest_share_price_scroll_group.php", market: "main" },
+  alpha: { label: "Alphabetical", path: "/latest_share_price_alpha.php", market: "main" },
   treasury: {
     label: "Treasury Bond",
     path: "/latest_share_price_scroll_treasury_bond.php",
+    market: "main",
+  },
+  // Separate DSE boards on their own subdomains.
+  sme: {
+    label: "SME Market",
+    path: "https://sme.dsebd.org/sme_latest_share_price_scroll_l.php",
+    market: "sme",
+  },
+  atb: {
+    label: "ATB Market",
+    path: "https://atb.dsebd.org/latest_share_price_scroll_l.php",
+    market: "atb",
   },
 } as const;
 

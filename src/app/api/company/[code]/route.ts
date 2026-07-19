@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { getCompany } from "@/lib/scraper/company";
 import { tradingCodeSchema } from "@/lib/schemas";
+import { normalizeMarket } from "@/lib/markets";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params;
+  const market = normalizeMarket(new URL(req.url).searchParams.get("market"));
 
   const parsed = tradingCodeSchema.safeParse(code);
   if (!parsed.success) {
@@ -16,7 +18,7 @@ export async function GET(
   }
 
   try {
-    const detail = await getCompany(parsed.data);
+    const detail = await getCompany(parsed.data, market);
     return NextResponse.json(detail);
   } catch (err) {
     return NextResponse.json(

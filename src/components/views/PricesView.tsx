@@ -59,7 +59,12 @@ export default function PricesView({ view }: { view: PriceView }) {
         <ErrorState message={error instanceof Error ? error.message : "Failed"} />
       )}
       {data && (
-        <DataTable headers={data.headers} rows={data.rows} codes={data.codes} />
+        <DataTable
+          headers={data.headers}
+          rows={data.rows}
+          codes={data.codes}
+          market={PRICE_VIEWS[view].market}
+        />
       )}
     </div>
   );

@@ -19,6 +19,8 @@ export const tradingCodeSchema = z
   .transform((s) => s.toUpperCase())
   .refine((s) => /^[A-Z0-9.]+$/.test(s), "Invalid trading code");
 
+export const marketSchema = z.enum(["main", "sme", "atb"]);
+
 export const exportFormatSchema = z.enum(["csv", "xlsx", "pdf"]);
 
 export const exportQuerySchema = z.discriminatedUnion("source", [
@@ -36,6 +38,7 @@ export const exportQuerySchema = z.discriminatedUnion("source", [
     source: z.literal("company"),
     code: tradingCodeSchema,
     format: exportFormatSchema,
+    market: marketSchema.optional(),
   }),
 ]);
 

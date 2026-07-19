@@ -40,10 +40,10 @@ export function useCompanyList() {
   });
 }
 
-export function useCompany(code: string) {
+export function useCompany(code: string, market = "main") {
   return useQuery({
-    queryKey: ["company", code],
-    queryFn: () => fetchCompany(code),
+    queryKey: ["company", market, code],
+    queryFn: () => fetchCompany(code, market),
     enabled: Boolean(code),
   });
 }

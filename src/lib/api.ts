@@ -41,9 +41,13 @@ export function fetchIndustryTable(area: string): Promise<IndustryTableResponse>
   );
 }
 
-export function fetchCompany(code: string): Promise<CompanyDetailResponse> {
+export function fetchCompany(
+  code: string,
+  market = "main"
+): Promise<CompanyDetailResponse> {
+  const qs = market !== "main" ? `?market=${market}` : "";
   return getJson(
-    `/api/company/${encodeURIComponent(code)}`,
+    `/api/company/${encodeURIComponent(code)}${qs}`,
     companyDetailSchema
   );
 }

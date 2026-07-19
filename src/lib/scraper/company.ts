@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import { fetchHtml } from "./client";
 import { cleanText } from "./parseTable";
 import { cached } from "@/lib/cache";
+import { MARKETS, type Market } from "@/lib/markets";
 import type {
   CompanyDetail,
   CompanyField,
@@ -68,11 +69,12 @@ function sectionFor(label: string): string {
   return "Other";
 }
 
-export function getCompany(code: string): Promise<CompanyDetail> {
-  return cached(`company:${code}`, async () => {
-    const html = await fetchHtml(
-      `/displayCompany.php?name=${encodeURIComponent(code)}`
-    );
+export function getCompany(
+  code: string,
+  market: Market = "main"
+): Promise<CompanyDetail> {
+  return cached(`company:${market}:${code}`, async () => {
+    const html = await fetchHtml(MARKETS[market].companyUrl(code));
     const $ = cheerio.load(html);
 
     const table = $("#company");

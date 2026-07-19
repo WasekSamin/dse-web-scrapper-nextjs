@@ -21,6 +21,8 @@ interface Props {
   codes?: (string | null)[];
   /** Which header label holds the trading code (to linkify that cell). */
   codeColumn?: string;
+  /** Market the codes belong to (adds ?market= to company links). */
+  market?: string;
 }
 
 function toNumber(v: string): number | null {
@@ -40,7 +42,9 @@ export default function DataTable({
   rows,
   codes,
   codeColumn = "TRADING CODE",
+  market = "main",
 }: Props) {
+  const marketQs = market !== "main" ? `?market=${market}` : "";
   const [query, setQuery] = useState("");
   const [sortCol, setSortCol] = useState<number | null>(null);
   const [asc, setAsc] = useState(true);
@@ -140,7 +144,7 @@ export default function DataTable({
                   >
                     {ci === codeIdx && r.code ? (
                       <Link
-                        href={`/company/${encodeURIComponent(r.code)}`}
+                        href={`/company/${encodeURIComponent(r.code)}${marketQs}`}
                         className="font-semibold text-primary hover:underline"
                       >
                         {cell}

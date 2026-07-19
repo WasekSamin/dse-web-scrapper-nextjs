@@ -7,6 +7,7 @@ import { toExcel, companyToExcel } from "@/lib/export/excel";
 import { toPdf, companyToPdf } from "@/lib/export/pdf";
 import { enrichedHeaders, enrichedCells } from "@/lib/export/detailed";
 import { exportQuerySchema } from "@/lib/schemas";
+import type { Market } from "@/lib/markets";
 import type { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -60,9 +61,9 @@ async function resolveDataset(
  * Append the per-company enrichment columns (outstanding securities, 52-week
  * range, free-float cap, shareholding %) to each base row, matched by code.
  */
-async function enrichDataset(data: Dataset): Promise<Dataset> {
+async function enrichDataset(data: Dataset, market: Market): Promise<Dataset> {
   const codes = data.codes.filter((c): c is string => Boolean(c));
-  const enriched = await getEnrichedRows(codes);
+  const enriched = await getEnrichedRows(codes, market);
   const byCode = new Map(enriched.map((r) => [r.code, r]));
 
   return {
@@ -94,7 +95,7 @@ export async function GET(req: Request) {
   // Company exports use dedicated, section-aware builders.
   if (q.source === "company") {
     try {
-      const c = await getCompany(q.code);
+      const c = await getCompany(q.code, q.market ?? "main");
       const filename = `dse-company-${q.code}`;
       if (format === "csv")
         return fileResponse(companyToCsv(c), `${filename}.csv`, "text/csv; charset=utf-8");
@@ -113,11 +114,15 @@ export async function GET(req: Request) {
     }
   }
 
+  // Prices boards may be a non-main market (SME/ATB); industry is main only.
+  const market: Market =
+    q.source === "prices" ? PRICE_VIEWS[q.view].market : "main";
+
   let data: Dataset;
   try {
     data = await resolveDataset(q);
     // Every format carries the full merged column set (CSV, Excel and PDF).
-    data = await enrichDataset(data);
+    data = await enrichDataset(data, market);
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Scrape failed" }),

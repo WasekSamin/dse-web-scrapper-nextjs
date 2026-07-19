@@ -39,8 +39,14 @@ function isUrl(v: string) {
   return /^https?:\/\//i.test(v);
 }
 
-export default function CompanyView({ code }: { code: string }) {
-  const { data, isLoading, isError, error } = useCompany(code);
+export default function CompanyView({
+  code,
+  market = "main",
+}: {
+  code: string;
+  market?: string;
+}) {
+  const { data, isLoading, isError, error } = useCompany(code, market);
   const [slowExport, setSlowExport] = useState(false);
   const dir = data?.headline.direction ?? "flat";
 
@@ -63,7 +69,7 @@ export default function CompanyView({ code }: { code: string }) {
           {data && (
             <ExportButtons
               source="company"
-              params={{ code }}
+              params={market !== "main" ? { code, market } : { code }}
               onSlowChange={setSlowExport}
             />
           )}
@@ -123,7 +129,10 @@ export default function CompanyView({ code }: { code: string }) {
                     {dir === "up" && <TrendingUp className="h-4 w-4" />}
                     {dir === "down" && <TrendingDown className="h-4 w-4" />}
                     <span className="tabular-nums">
-                      {data.headline.change} ({data.headline.changePct})
+                      {data.headline.change}
+                      {data.headline.changePct
+                        ? ` (${data.headline.changePct})`
+                        : ""}
                     </span>
                   </div>
                 )}

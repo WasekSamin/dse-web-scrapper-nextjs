@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useIndustries, useIndustryTable } from "@/hooks/useDseData";
 import DataTable from "@/components/DataTable";
 import ExportButtons from "@/components/ExportButtons";
@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function IndustryView({ area }: { area?: string }) {
   const router = useRouter();
   const [slowExport, setSlowExport] = useState(false);
-  const { data: industries } = useIndustries();
+  const { data: industries, isLoading: sectorsLoading } = useIndustries();
   const {
     data: table,
     isLoading,
@@ -64,21 +64,28 @@ export default function IndustryView({ area }: { area?: string }) {
       </div>
 
       <div className="w-full max-w-xs">
-        <Select
-          value={area ?? ""}
-          onValueChange={(v) => router.push(`/industry?area=${v}`)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select a sector…" />
-          </SelectTrigger>
-          <SelectContent>
-            {(industries?.industries ?? []).map((i) => (
-              <SelectItem key={i.area} value={i.area}>
-                {i.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {sectorsLoading ? (
+          <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading sectors…
+          </div>
+        ) : (
+          <Select
+            value={area ?? ""}
+            onValueChange={(v) => router.push(`/industry?area=${v}`)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a sector…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(industries?.industries ?? []).map((i) => (
+                <SelectItem key={i.area} value={i.area}>
+                  {i.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {slowExport && <SlowExportHint />}
