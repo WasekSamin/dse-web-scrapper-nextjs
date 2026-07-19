@@ -4,7 +4,16 @@ import https from "node:https";
 // dsebd.org presents an incomplete TLS chain and rejects requests without a
 // browser-like User-Agent. We relax cert verification for THIS host only via a
 // dedicated https agent, and always send a realistic UA.
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+//
+// keepAlive reuses TLS connections across the hundreds of company-detail
+// requests an enriched export makes, avoiding a fresh handshake each time
+// (a big speedup). maxSockets caps concurrent sockets to stay polite to DSE.
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+  keepAlive: true,
+  keepAliveMsecs: 15_000,
+  maxSockets: 24,
+});
 
 const client: AxiosInstance = axios.create({
   baseURL: "https://www.dsebd.org",
