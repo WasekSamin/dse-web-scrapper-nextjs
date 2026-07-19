@@ -98,18 +98,30 @@ Export query params: `source=prices&view=<view>`, `source=industry&area=<id>`, o
 
 ## Deployment
 
-**Railway (recommended)** — this app runs best on a long‑lived container host, because
-the enriched exports scrape ~400 pages (~40s) and the in‑memory cache benefits from a
-persistent process.
+This app runs best on a **long‑lived container host** (not serverless), because the
+enriched exports scrape ~400 pages (~40s) and the in‑memory cache only helps on a
+persistent process. The `start` script already honours each platform's `$PORT` and binds
+`0.0.0.0`, so no code changes are needed for the container options below.
 
-1. Push to GitHub → Railway **New Project → Deploy from GitHub repo**.
-2. Railway auto‑detects Next.js (Nixpacks): `npm install` → `npm run build` → `npm start`.
-3. `railway.json` pins the build/start commands, `/api/health` check, and restart policy.
-   The `start` script uses Railway's injected `$PORT` and binds `0.0.0.0`.
+**Free options** (limits change — verify current terms):
 
-**Vercel** works for the *fast* endpoints, but the enriched CSV/Excel/PDF exports can hit
-the serverless execution‑time limit (fine on Pro's 300s; risky on Hobby's 60s cap), and
-the in‑memory cache does not persist across serverless instances.
+| Host | Free? | Notes |
+|---|---|---|
+| **Render** (free web service) | ✅ no card | Easiest: deploy from GitHub. Spins down after ~15 min idle → cold start on next hit; cache clears on sleep. |
+| **Koyeb** (free tier) | ✅ no card | 1 free container service; sleeps when idle. |
+| **Oracle Cloud "Always Free" VM** | ✅ forever | Best for uptime: no cold starts, cache persists, no timeouts — but it's a VPS you set up (pm2/systemd + nginx). |
+| **Google Cloud Run** | ✅ generous tier | Container, up to 60‑min request timeout; needs a Dockerfile + billing account; scales to zero. |
+
+**Paid / trial:** **Railway** (one‑time trial credit, then ~$5/mo Hobby) is a great fit —
+auto‑detects Next.js via Nixpacks and uses the included `railway.json` (build/start
+commands, `/api/health` check, restart policy).
+
+**Vercel (Hobby)** works for the *fast* endpoints, but the enriched CSV/Excel/PDF exports
+can hit the serverless execution‑time limit (fine on Pro's 300s; risky on Hobby's 60s
+cap), and the in‑memory cache does not persist across serverless instances.
+
+**Typical container deploy (Render/Koyeb):** connect the GitHub repo → build `npm run
+build`, start `npm start`, health check `/api/health`. Done.
 
 > **Note:** dsebd.org uses cloud‑hostile settings; the scraper sends a browser
 > `User-Agent` and relaxes TLS verification for that host. A cloud provider's IPs

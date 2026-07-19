@@ -290,7 +290,8 @@ of 10, cached) → merge 32 columns → `exceljs` buffer → download. Cancel ab
 - **Client‑safe `views.ts`** — the price‑view metadata is split out so client components
   and Zod schemas don't pull the Node‑only scraper (axios/cheerio) into the browser bundle.
 - **Long‑lived host preferred** — the in‑memory cache and long exports favour a container
-  platform (Railway) over serverless (see README → Deployment).
+  host (Render, Koyeb, an Oracle Cloud free VM, Railway, …) over serverless
+  (see README → Deployment).
 
 ---
 
