@@ -68,8 +68,14 @@ function parseShareholding(bodyText: string): ShareholdingPeriod[] {
   return out;
 }
 
+// The exported enrichment columns (outstanding securities, 52-week range,
+// free-float cap, shareholding %) are near-static, so cache them long enough to
+// survive a browsing session. This lets a background prewarm on page load stay
+// warm until the user clicks Export, turning the export into a cache hit.
+const ENRICHED_TTL_MS = 30 * 60 * 1000;
+
 /**
- * Scrape one company's detail page into an enriched row. Cached ~5 min. Never
+ * Scrape one company's detail page into an enriched row. Cached ~30 min. Never
  * throws — a page that fails (e.g. some bonds) yields a row with just the code.
  */
 export function getCompanyRow(
@@ -104,7 +110,7 @@ export function getCompanyRow(
         };
       }
     },
-    5 * 60 * 1000
+    ENRICHED_TTL_MS
   );
 }
 

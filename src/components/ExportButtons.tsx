@@ -55,6 +55,36 @@ export default function ExportButtons({
   const [busy, setBusy] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const controllerRef = useRef<AbortController | null>(null);
+  // Remember which boards we've already kicked a prewarm for, so browsing back
+  // to a view doesn't re-fire the (expensive) scrape within one page session.
+  const warmedRef = useRef<Set<string>>(new Set());
+
+  // Once the table is ready, warm the per-company enrichment cache in the
+  // background. Company exports carry no enrichment, so skip them. This is
+  // fire-and-forget: by the time the user clicks Export the cache is hot and
+  // the export skips scraping entirely. A failure here is silent — the export
+  // path will just scrape on demand as before.
+  // `params` is a fresh object each render; key on its value so re-renders
+  // don't re-fire (or abort) an in-flight prewarm.
+  const paramsKey = JSON.stringify(params);
+  useEffect(() => {
+    if (disabled || source === "company") return;
+    const key = `${source}:${paramsKey}`;
+    if (warmedRef.current.has(key)) return;
+    warmedRef.current.add(key);
+
+    const controller = new AbortController();
+    const qs = new URLSearchParams({ source, ...params });
+    fetch(`/api/export/prewarm?${qs.toString()}`, {
+      signal: controller.signal,
+    }).catch(() => {
+      // Prewarm is best-effort; allow a retry on the next mount if it failed.
+      warmedRef.current.delete(key);
+    });
+    return () => controller.abort();
+    // params is captured via paramsKey (its serialized value).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, source, paramsKey]);
 
   // Report the "slow export running" state up so the view can show a hint.
   const slow = busy !== null && elapsed >= SLOW_HINT_AFTER_SECONDS;

@@ -42,6 +42,13 @@ export const exportQuerySchema = z.discriminatedUnion("source", [
   }),
 ]);
 
+// Prewarm accepts the same source+params as an export, minus format — company
+// exports carry no per-company enrichment, so only prices/industry apply.
+export const prewarmQuerySchema = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("prices"), view: priceViewSchema }),
+  z.object({ source: z.literal("industry"), area: areaSchema }),
+]);
+
 // ---- Response shapes (used to validate what the API hands the client) ----
 
 export const scrapedTableSchema = z.object({
