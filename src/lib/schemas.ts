@@ -17,7 +17,9 @@ export const tradingCodeSchema = z
   .min(1, "Trading code is required")
   .max(30)
   .transform((s) => s.toUpperCase())
-  .refine((s) => /^[A-Z0-9.]+$/.test(s), "Invalid trading code");
+  // DSE codes aren't purely alphanumeric: they may contain dots, hyphens
+  // (AL-HAJTEX) and parentheses (AMCL(PRAN)). Allow that full set.
+  .refine((s) => /^[A-Z0-9.()-]+$/.test(s), "Invalid trading code");
 
 export const marketSchema = z.enum(["main", "sme", "atb"]);
 
