@@ -3,24 +3,46 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-let pdfMakeInstance: any | null = null;
+let pdfMakeInstance: { pdfMake: any; vfs: any } | null = null;
 
-async function getPdfMake(): Promise<any> {
+// If the font map hasn't loaded within this window, fail fast instead of
+// hanging: pdfmake throws asynchronously when a font is missing, and that
+// rejection never reaches our try/catch — so getBuffer's callback would
+// otherwise never fire and the request would hang forever (observed as an
+// 11-minute "still exporting" on the Render production build).
+const PDF_RENDER_TIMEOUT_MS = 20_000;
+
+async function getPdfMake(): Promise<{ pdfMake: any; vfs: any }> {
   if (pdfMakeInstance) return pdfMakeInstance;
 
   const pdfMakeMod: any = await import("pdfmake/build/pdfmake");
   const vfsMod: any = await import("pdfmake/build/vfs_fonts");
 
   const pdfMake = pdfMakeMod.default ?? pdfMakeMod;
-  const vfs =
-    vfsMod.pdfMake?.vfs ??
-    vfsMod.default?.pdfMake?.vfs ??
-    vfsMod.vfs ??
-    vfsMod.default?.vfs;
 
-  if (vfs) pdfMake.vfs = vfs;
-  pdfMakeInstance = pdfMake;
-  return pdfMake;
+  // pdfmake 0.2.x ships vfs_fonts as `module.exports = <fileMap>` — the
+  // { "Roboto-Regular.ttf": "<base64>", ... } object itself, NOT wrapped in
+  // `.pdfMake.vfs` / `.vfs`. Its self-registration side-effect only runs when a
+  // global `pdfMake` already exists, which happens in `next dev` but NOT in the
+  // production standalone bundle — hence PDF export hung only in production. So
+  // resolve the map ourselves and pass it explicitly to createPdf().
+  const looksLikeFontMap = (o: any) => o && typeof o === "object" && o["Roboto-Regular.ttf"];
+  const vfs =
+    (looksLikeFontMap(vfsMod?.default) && vfsMod.default) ||
+    (looksLikeFontMap(vfsMod) && vfsMod) ||
+    // Legacy shapes, kept for other pdfmake versions.
+    vfsMod?.pdfMake?.vfs ||
+    vfsMod?.default?.pdfMake?.vfs ||
+    vfsMod?.vfs ||
+    vfsMod?.default?.vfs ||
+    null;
+
+  if (!looksLikeFontMap(vfs)) {
+    throw new Error("pdfmake fonts (vfs) failed to load — cannot render PDF");
+  }
+
+  pdfMakeInstance = { pdfMake, vfs };
+  return pdfMakeInstance;
 }
 
 export async function toPdf(
@@ -29,7 +51,7 @@ export async function toPdf(
   rows: string[][],
   scrapedAt: string
 ): Promise<Buffer> {
-  const pdfMake = await getPdfMake();
+  const { pdfMake, vfs } = await getPdfMake();
 
   // Scale down for wide (enriched) tables so all columns fit the page; share the
   // page width evenly (star widths) so long values wrap instead of overflowing.
@@ -79,14 +101,14 @@ export async function toPdf(
     },
   };
 
-  return renderPdf(pdfMake, docDefinition);
+  return renderPdf(pdfMake, vfs, docDefinition);
 }
 
 import type { CompanyDetail } from "@/lib/types";
 
 /** Company export: portrait page, hero line, one Field/Value table per section. */
 export async function companyToPdf(detail: CompanyDetail): Promise<Buffer> {
-  const pdfMake = await getPdfMake();
+  const { pdfMake, vfs } = await getPdfMake();
   const h = detail.headline;
 
   const content: any[] = [
@@ -143,16 +165,32 @@ export async function companyToPdf(detail: CompanyDetail): Promise<Buffer> {
     },
   };
 
-  return renderPdf(pdfMake, docDefinition);
+  return renderPdf(pdfMake, vfs, docDefinition);
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function renderPdf(pdfMake: any, docDefinition: any): Promise<Buffer> {
+function renderPdf(pdfMake: any, vfs: any, docDefinition: any): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
+    // Pass fonts explicitly (4th arg) rather than relying on global vfs state,
+    // which isn't wired up in the production standalone bundle.
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`PDF generation timed out after ${PDF_RENDER_TIMEOUT_MS}ms`));
+    }, PDF_RENDER_TIMEOUT_MS);
     try {
-      const doc = pdfMake.createPdf(docDefinition);
-      doc.getBuffer((buf: Uint8Array) => resolve(Buffer.from(buf)));
+      const doc = pdfMake.createPdf(docDefinition, null, null, vfs);
+      doc.getBuffer((buf: Uint8Array) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(Buffer.from(buf));
+      });
     } catch (err) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       reject(err);
     }
   });
