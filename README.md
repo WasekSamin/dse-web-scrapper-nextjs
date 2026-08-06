@@ -123,6 +123,24 @@ cap), and the in‑memory cache does not persist across serverless instances.
 **Typical container deploy (Render/Koyeb):** connect the GitHub repo → build `npm run
 build`, start `npm start`, health check `/api/health`. Done.
 
+### Keeping the app awake (uptime scheduler)
+
+Free hosts like **Render** and **Koyeb** spin the service down after ~10–15 min of no
+traffic, which means a slow cold start on the next visit (and the in‑memory cache is lost).
+To avoid this, an external cron/uptime pinger hits the app on an interval so it never goes
+idle.
+
+- **Scheduler in use:** [cron-job.org](https://console.cron-job.org/) (free tier).
+- **What it does:** sends an HTTP request every **10 minutes** to keep the host awake.
+- **Endpoint to ping:** `GET /api/health` — the lightweight liveness route
+  (`{"status":"ok"}`); it doesn't scrape DSE, so the keep‑alive stays cheap.
+- **Setup:** in the cron-job.org console, create a job with the deployed URL
+  (e.g. `https://<your-app>.onrender.com/api/health`), schedule = every 10 minutes.
+
+> Not needed on an always‑on host (Oracle Cloud "Always Free" VM, or a paid Railway
+> service) — those never sleep, so the scheduler is only relevant for the free
+> sleep‑when‑idle tiers.
+
 > **Note:** dsebd.org uses cloud‑hostile settings; the scraper sends a browser
 > `User-Agent` and relaxes TLS verification for that host. A cloud provider's IPs
 > *may* still be rate‑limited by DSE — only testable once deployed.

@@ -318,3 +318,23 @@ of 10, cached) → merge 32 columns → `exceljs` buffer → download. Cancel ab
   `lib/api.ts` (+ a Zod schema in `schemas.ts`).
 - **Durable cache** → replace the `Map` in `lib/cache.ts` with a Redis/KV client (keep the
   `cached(key, producer, ttl)` signature and everything else works unchanged).
+
+---
+
+## 14. Uptime scheduler (keep‑alive)
+
+Free hosts (Render, Koyeb) **spin the service down after ~10–15 min of no traffic**, so the
+next visitor pays a cold start and the in‑memory cache (§5) is lost. To keep the process
+warm, an **external cron pinger** hits the app on a short interval.
+
+- **Scheduler:** [cron-job.org](https://console.cron-job.org/) (free tier).
+- **Interval:** every **10 minutes** (shorter than the host's idle timeout).
+- **Endpoint:** `GET /api/health` — the `health/route.ts` liveness route that returns
+  `{ status: "ok" }`. It's intentionally cheap: **it does not scrape DSE**, so the
+  keep‑alive traffic costs nothing beyond waking the process.
+- **Setup:** create a job in the cron-job.org console pointing at the deployed health URL
+  (e.g. `https://<your-app>.onrender.com/api/health`), scheduled every 10 minutes.
+
+Only relevant for the free **sleep‑when‑idle** tiers — an always‑on host (Oracle Cloud
+"Always Free" VM, or a paid Railway service) never sleeps, so no external pinger is needed.
+See README → Deployment for the host comparison.
