@@ -32,11 +32,10 @@ is fresh from DSE.
     Prices page, where PDF is disabled).
   - Every export shows a running timer and can be **cancelled** mid‑run.
 - **Excel "From Web" (live refresh)** — paste the **normal** price URL (e.g.
-  `/prices/latest`) into Excel's **Data → From Web**. Middleware detects that the caller
-  isn't a browser (no `Sec-Fetch-*` headers) and serves a plain HTML `<table>` with the
-  **full enriched export columns**, so Excel auto‑detects it and **Refresh** re‑pulls live
-  data. Browsers still get the normal page. Overrides: `?format=excel`, `?format=page`,
-  `?full=0`. See DOCS §6a.
+  `/prices/latest`) into Excel's **Data → From Web**. The page embeds a hidden,
+  server‑rendered `<table>` with the **full enriched export columns**, so Excel finds it at
+  the *same URL you browse* and **Refresh** re‑pulls live data — while browsers still see
+  the full website UI. No suffix, no user‑agent tricks. See DOCS §6a.
 - **Responsive** — desktop nav collapses to a left slide‑in **sidebar drawer** on mobile.
 
 ---
@@ -90,7 +89,7 @@ All routes are dynamic (scraped at request time).
 | Route | Purpose |
 |---|---|
 | `GET /api/prices/[view]` | A price board. `view` ∈ `latest, change, value, volume, ltp, group, alpha, treasury, sme, atb` |
-| `GET /api/table/[view]` | Same board as a plain HTML `<table>` for Excel "From Web" (auto-served on `/prices/[view]` for Excel requests) |
+| `GET /api/table/[view]` | Same board as a plain HTML `<table>` for direct/UI-free access (`?full=1` for enriched). The page at `/prices/[view]` also embeds this table for Excel "From Web" |
 | `GET /api/industry` | List of sectors |
 | `GET /api/industry?area=<id>` | One sector's price table |
 | `GET /api/company/[code]` | Company detail, e.g. `/api/company/GP` |

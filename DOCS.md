@@ -62,7 +62,7 @@ src/
     globals.css                # Tailwind + shadcn CSS variables (theme tokens)
     icon.png / apple-icon.png  # Favicons (auto-detected by Next metadata)
 
-    prices/[view]/page.tsx     # Server shell → <PricesView view=…>
+    prices/[view]/page.tsx     # <PricesView> + hidden embedded <table> for Excel (§6a)
     industry/page.tsx          # Server shell → <IndustryView area=…>
     company/page.tsx           # Company lookup landing (search only)
     company/[code]/page.tsx    # Server shell → <CompanyView code=…>
@@ -75,8 +75,6 @@ src/
       companies/route.ts       # All trading codes (typeahead source) → JSON
       export/route.ts          # Enriched CSV/Excel/PDF file download
       health/route.ts          # { status: "ok" } — deploy health check
-
-  middleware.ts                # Non-browser (no Sec-Fetch) /prices/[view] → /api/table (§6a)
 
   components/
     providers.tsx              # React Query QueryClientProvider
@@ -202,49 +200,51 @@ union over `source`). Invalid input → `400`; scrape failure → `502`.
 platforms that honour it.
 
 **`table/[view]/route.ts`** returns a **plain server‑rendered HTML `<table>`** (no JS) for
-Excel "From Web" / Power Query — see §6a. Validates with `priceViewSchema`; responds
-`no-store` so Excel Refresh always re‑pulls. `?full=1` (or the `x-dse-full: 1` header set
-by the middleware) appends the **enriched export columns** (same 32‑column set as the
-Export button, via `lib/dataset.ts`); otherwise it returns the 11‑column base board.
-`maxDuration = 300` covers the ~40s enrichment scrape.
+Excel "From Web" / Power Query. Kept as a standalone endpoint (handy for direct access and
+debugging); the primary integration is the embedded table on the page itself — see §6a.
+Validates with `priceViewSchema`; responds `no-store`. `?full=1` appends the **enriched
+export columns** (same 32‑column set as the Export button, via `lib/dataset.ts`); otherwise
+it returns the 11‑column base board. `maxDuration = 300` covers the ~40s enrichment scrape.
 
 ---
 
 ## 6a. Excel "From Web" / Power Query integration
 
-Excel's **From Web** connector cannot read the React price pages: they render the table
-client‑side, so Excel sees an empty HTML shell. The client should be able to paste the
-**same URL they browse** (`/prices/<view>`) and get data. Two pieces make that work:
+Excel's **From Web** connector cannot read a normal React page: the table is rendered
+client‑side, so Excel sees an empty HTML shell (Navigator shows only "HTML Code" /
+"Displayed Text", no table). The client must be able to paste the **same URL they browse**
+(`/prices/<view>`) and get data.
 
-- **`app/api/table/[view]/route.ts`** — emits a real `<table id="dse-data">` directly in
-  the initial HTML (headers + rows escaped), which Excel/Power Query detects and parses.
-- **`middleware.ts`** (`matcher: "/prices/:view"`) — decides page‑vs‑table by detecting
-  *real browser page loads* instead of fingerprinting Excel. A genuine top‑level browser
-  navigation sends **`Sec-Fetch-Mode: navigate`**; Next.js in‑app navigation/prefetch sends
-  RSC headers. Excel "From Web" / Power Query does a plain HTTP fetch (mode `cors`/`no-cors`,
-  no RSC header). So:
-  - **`Sec-Fetch-Mode: navigate`** or an RSC/`next-router-*` header → normal React page.
-  - **Otherwise** (incl. Excel) → **rewrite** to `/api/table/<view>` with `x-dse-full: 1`,
-    i.e. the **full enriched export** table (matches the Export button).
+**Why not content‑negotiation?** We tried detecting Excel vs browser in middleware (by
+user‑agent, then by `Sec-Fetch-*` headers). It failed: Excel "From Web" sends the **same
+navigation headers as a real browser**, so the two are indistinguishable at the same URL.
+That approach (and the middleware) was removed.
 
-  Important nuances discovered in testing:
-  - Excel *does* send some `sec-fetch-*` headers, so we match `navigate` **specifically**,
-    not the mere presence of `sec-fetch-*`.
-  - Next.js strips the `RSC`/`next-router-*` headers before middleware sees them, so in‑app
-    soft navigation to `/prices/<view>` is rewritten to the table; the router then detects
-    the non‑flight response and falls back to a full page load (which sends `navigate` →
-    the React page). Net effect: in‑app nav still works, just as a hard reload.
-  - Query params added during a rewrite aren't visible to the handler, so the enriched flag
-    is passed as the `x-dse-full` request header rather than `?full=1`.
+**The solution — embed a real table in the page** (`app/prices/[view]/page.tsx`):
+
+- The page renders the interactive `<PricesView>` **and** a hidden, server‑rendered
+  `<table id="dse-data">` holding the **full enriched export dataset** (32 columns, via
+  `lib/dataset.ts`).
+- The table is visually hidden **off‑screen** (`position:absolute; left:-99999px`), *not*
+  `display:none`, so every HTML‑table parser (incl. Excel) still enumerates it while users
+  never see it.
+- It is streamed via **`<Suspense>`** so the ~40s enrichment scrape does **not** block the
+  interactive UI — the browser shows the React app immediately; the hidden table flushes
+  into the HTML stream when ready. Power Query reads the full response body, so it receives
+  the completed table.
+
+Net effect at one URL: **browser → website UI; Excel → the 32‑column table.** No detection,
+no user‑agent/header guessing, no `?format=excel` suffix.
 
 **Client workflow:** Excel → Data → From Web → paste `https://<host>/prices/<view>` → load
 table `dse-data` → thereafter just **Data → Refresh All**. All 10 views work (`latest,
 change, value, volume, ltp, group, alpha, treasury, sme, atb`). Each refresh re‑scrapes
-(~40s for the enriched set; ~5 min cache warmth after).
+(~40s for the enriched set; ~5 min cache warmth after — see the prewarm route in §8).
 
-**Overrides:** `?format=excel` forces the table even from a browser; `?format=page` forces
-the React page; `?full=0` returns the fast 11‑column base board instead of the enriched
-set. Hitting `/api/table/<view>?full=1` directly also works from any client.
+**Cost of this approach:** every page load (browser included) triggers the enrichment
+scrape. The UI stays interactive via streaming, and the 30s/5‑min caches + background
+prewarm absorb most of the repeat cost, but cold loads do ~400 detail‑page fetches.
+`/api/table/<view>` (optionally `?full=1`) remains available for direct, UI‑free access.
 
 ---
 
