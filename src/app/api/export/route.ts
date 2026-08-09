@@ -1,80 +1,20 @@
-import { getPriceTable, PRICE_VIEWS } from "@/lib/scraper/prices";
-import { getIndustryTable } from "@/lib/scraper/industry";
+import { PRICE_VIEWS } from "@/lib/scraper/prices";
 import { getCompany } from "@/lib/scraper/company";
-import { getEnrichedRows } from "@/lib/scraper/enriched";
 import { toCsv, companyToCsv } from "@/lib/export/csv";
 import { toExcel, companyToExcel } from "@/lib/export/excel";
 import { toPdf, companyToPdf } from "@/lib/export/pdf";
-import { enrichedHeaders, enrichedCells } from "@/lib/export/detailed";
 import { exportQuerySchema } from "@/lib/schemas";
+import {
+  resolvePriceDataset,
+  resolveIndustryDataset,
+  enrichDataset,
+  type Dataset,
+} from "@/lib/dataset";
 import type { Market } from "@/lib/markets";
-import type { z } from "zod";
 
 export const dynamic = "force-dynamic";
 // CSV/Excel exports enrich every company from its detail page — allow time.
 export const maxDuration = 300;
-
-type ExportQuery = z.infer<typeof exportQuerySchema>;
-
-interface Dataset {
-  title: string;
-  filename: string;
-  headers: string[];
-  rows: string[][];
-  codes: (string | null)[];
-  scrapedAt: string;
-}
-
-/** Strip trailing footnote asterisks (LTP*, CLOSEP*, YCP*) for cleaner exports. */
-function cleanHeader(h: string): string {
-  return h.replace(/\s*\*+$/, "");
-}
-
-/** Resolve a validated prices/industry query into a flat table (with codes). */
-async function resolveDataset(
-  q: Extract<ExportQuery, { source: "prices" | "industry" }>
-): Promise<Dataset> {
-  if (q.source === "prices") {
-    const t = await getPriceTable(q.view);
-    return {
-      title: `DSE Share Prices — ${PRICE_VIEWS[q.view].label}`,
-      filename: `dse-prices-${q.view}`,
-      headers: t.headers.map(cleanHeader),
-      rows: t.rows,
-      codes: t.codes,
-      scrapedAt: t.scrapedAt,
-    };
-  }
-
-  const t = await getIndustryTable(q.area);
-  return {
-    title: `DSE Share Prices — ${t.sectorName}`,
-    filename: `dse-industry-${q.area}`,
-    headers: t.headers.map(cleanHeader),
-    rows: t.rows,
-    codes: t.codes,
-    scrapedAt: t.scrapedAt,
-  };
-}
-
-/**
- * Append the per-company enrichment columns (outstanding securities, 52-week
- * range, free-float cap, shareholding %) to each base row, matched by code.
- */
-async function enrichDataset(data: Dataset, market: Market): Promise<Dataset> {
-  const codes = data.codes.filter((c): c is string => Boolean(c));
-  const enriched = await getEnrichedRows(codes, market);
-  const byCode = new Map(enriched.map((r) => [r.code, r]));
-
-  return {
-    ...data,
-    headers: [...data.headers, ...enrichedHeaders()],
-    rows: data.rows.map((row, i) => [
-      ...row,
-      ...enrichedCells(byCode.get(data.codes[i] ?? "")),
-    ]),
-  };
-}
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
@@ -120,7 +60,10 @@ export async function GET(req: Request) {
 
   let data: Dataset;
   try {
-    data = await resolveDataset(q);
+    data =
+      q.source === "prices"
+        ? await resolvePriceDataset(q.view)
+        : await resolveIndustryDataset(q.area);
     // Every format carries the full merged column set (CSV, Excel and PDF).
     data = await enrichDataset(data, market);
   } catch (err) {

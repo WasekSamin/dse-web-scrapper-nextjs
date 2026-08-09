@@ -76,7 +76,7 @@ src/
       export/route.ts          # Enriched CSV/Excel/PDF file download
       health/route.ts          # { status: "ok" } — deploy health check
 
-  middleware.ts                # Excel UA on /prices/[view] → rewrite to /api/table (§6a)
+  middleware.ts                # Non-browser (no Sec-Fetch) /prices/[view] → /api/table (§6a)
 
   components/
     providers.tsx              # React Query QueryClientProvider
@@ -102,6 +102,7 @@ src/
     export/
       csv.ts   excel.ts   pdf.ts   detailed.ts   # Format builders + merge columns
     api.ts                     # Typed fetchers (validate responses with Zod)
+    dataset.ts                 # Shared price/industry dataset + enrichment (export & table)
     schemas.ts                 # Zod schemas: inputs + response shapes
     cache.ts                   # In-memory TTL cache (Map)
     views.ts                   # Client-safe price-view metadata (labels, paths)
@@ -201,31 +202,41 @@ union over `source`). Invalid input → `400`; scrape failure → `502`.
 platforms that honour it.
 
 **`table/[view]/route.ts`** returns a **plain server‑rendered HTML `<table>`** (no JS) for
-Excel "From Web" / Power Query — see §6a. Same 30s cache and `priceViewSchema` validation
-as the JSON `prices/[view]` route; responds `no-store` so Excel Refresh always re‑pulls.
+Excel "From Web" / Power Query — see §6a. Validates with `priceViewSchema`; responds
+`no-store` so Excel Refresh always re‑pulls. `?full=1` (or the `x-dse-full: 1` header set
+by the middleware) appends the **enriched export columns** (same 32‑column set as the
+Export button, via `lib/dataset.ts`); otherwise it returns the 11‑column base board.
+`maxDuration = 300` covers the ~40s enrichment scrape.
 
 ---
 
 ## 6a. Excel "From Web" / Power Query integration
 
 Excel's **From Web** connector cannot read the React price pages: they render the table
-client‑side, so Excel sees an empty HTML shell. Two pieces fix this:
+client‑side, so Excel sees an empty HTML shell. The client should be able to paste the
+**same URL they browse** (`/prices/<view>`) and get data. Two pieces make that work:
 
 - **`app/api/table/[view]/route.ts`** — emits a real `<table id="dse-data">` directly in
-  the initial HTML (headers + rows escaped), which Excel/Power Query can detect and parse.
-- **`middleware.ts`** (`matcher: "/prices/:view"`) — when a request to `/prices/<view>`
-  looks like Excel (user‑agent matches `Mashup|Microsoft.Data|MSIE|Trident|PowerQuery|Excel|Office`)
-  it **rewrites** to `/api/table/<view>`. Browsers get the normal React page; Excel gets
-  the table. This lets the client paste the **same URL they browse**.
+  the initial HTML (headers + rows escaped), which Excel/Power Query detects and parses.
+- **`middleware.ts`** (`matcher: "/prices/:view"`) — decides page‑vs‑table by detecting
+  *real browsers* instead of fingerprinting Excel. Every browser request (top‑level page
+  load **and** Next.js in‑app RSC/prefetch fetches) carries `Sec-Fetch-*` headers; Excel /
+  Power Query / other HTTP clients send none. So:
+  - **Has a browser signal** (`sec-fetch-*`, `rsc`, `next-router-*`) → normal React page.
+  - **No browser signal** → **rewrite** to `/api/table/<view>` with `x-dse-full: 1`, i.e.
+    the **full enriched export** table (matches the Export button).
 
-**Client workflow:** Excel → Data → From Web → paste
-`https://<host>/prices/<view>` → load table `dse-data` → thereafter just **Data → Refresh
-All**. All 10 views work (`latest, change, value, volume, ltp, group, alpha, treasury,
-sme, atb`).
+  (Query params added during a rewrite aren't visible to the handler, so the enriched flag
+  is passed as the `x-dse-full` request header rather than `?full=1`.)
 
-**Fallback:** user‑agent sniffing is best‑effort. If a client's Excel isn't detected,
-append **`?format=excel`** (`/prices/<view>?format=excel`) — the middleware forces the
-table regardless of user‑agent.
+**Client workflow:** Excel → Data → From Web → paste `https://<host>/prices/<view>` → load
+table `dse-data` → thereafter just **Data → Refresh All**. All 10 views work (`latest,
+change, value, volume, ltp, group, alpha, treasury, sme, atb`). Each refresh re‑scrapes
+(~40s for the enriched set; ~5 min cache warmth after).
+
+**Overrides:** `?format=excel` forces the table even from a browser; `?format=page` forces
+the React page; `?full=0` returns the fast 11‑column base board instead of the enriched
+set. Hitting `/api/table/<view>?full=1` directly also works from any client.
 
 ---
 

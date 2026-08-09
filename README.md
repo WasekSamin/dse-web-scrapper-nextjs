@@ -31,10 +31,12 @@ is fresh from DSE.
   - **PDF** carries the same columns in a scaled landscape layout (except on the Share
     Prices page, where PDF is disabled).
   - Every export shows a running timer and can be **cancelled** mid‑run.
-- **Excel "From Web" (live refresh)** — paste a price URL (e.g.
-  `/prices/latest`) into Excel's **Data → From Web**; middleware serves a plain HTML
-  `<table>` to Excel so it can auto‑detect the data and **Refresh** it on demand. Add
-  `?format=excel` if Excel isn't auto‑detected. See DOCS §6a.
+- **Excel "From Web" (live refresh)** — paste the **normal** price URL (e.g.
+  `/prices/latest`) into Excel's **Data → From Web**. Middleware detects that the caller
+  isn't a browser (no `Sec-Fetch-*` headers) and serves a plain HTML `<table>` with the
+  **full enriched export columns**, so Excel auto‑detects it and **Refresh** re‑pulls live
+  data. Browsers still get the normal page. Overrides: `?format=excel`, `?format=page`,
+  `?full=0`. See DOCS §6a.
 - **Responsive** — desktop nav collapses to a left slide‑in **sidebar drawer** on mobile.
 
 ---

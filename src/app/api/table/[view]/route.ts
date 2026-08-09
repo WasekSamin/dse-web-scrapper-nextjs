@@ -1,7 +1,10 @@
-import { getPriceTable, PRICE_VIEWS } from "@/lib/scraper/prices";
+import { PRICE_VIEWS } from "@/lib/scraper/prices";
 import { priceViewSchema } from "@/lib/schemas";
+import { resolvePriceDataset, enrichDataset } from "@/lib/dataset";
 
 export const dynamic = "force-dynamic";
+// Enriched tables scrape every company's detail page — allow time.
+export const maxDuration = 300;
 
 /** Escape a cell value for safe embedding in HTML. */
 function esc(value: string): string {
@@ -16,14 +19,22 @@ function esc(value: string): string {
  * Plain server-rendered HTML `<table>` endpoint for Excel "From Web" /
  * Power Query. Unlike the React pages, this returns a real <table> in the
  * initial HTML (no JS), so Excel can detect it and its Refresh button will
- * re-pull live data. Example:
- *   https://dse-scrapper-ws.onrender.com/api/table/latest
+ * re-pull live data.
+ *
+ *   /api/table/latest          → the base price board (11 cols, instant)
+ *   /api/table/latest?full=1   → the enriched export dataset (32 cols, ~40s):
+ *                                same columns as the website's Export button.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ view: string }> }
 ) {
   const { view } = await params;
+  // `full` may arrive as a query param (direct hit) or the x-dse-full request
+  // header (set by middleware, since rewrite query isn't visible here).
+  const full =
+    new URL(req.url).searchParams.get("full") === "1" ||
+    req.headers.get("x-dse-full") === "1";
 
   const parsed = priceViewSchema.safeParse(view);
   if (!parsed.success) {
@@ -37,14 +48,17 @@ export async function GET(
   }
 
   try {
-    const table = await getPriceTable(parsed.data);
+    let data = await resolvePriceDataset(parsed.data);
+    if (full) {
+      data = await enrichDataset(data, PRICE_VIEWS[parsed.data].market);
+    }
     const label = PRICE_VIEWS[parsed.data].label;
 
-    const thead = `<tr>${table.headers
+    const thead = `<tr>${data.headers
       .map((h) => `<th>${esc(h)}</th>`)
       .join("")}</tr>`;
 
-    const tbody = table.rows
+    const tbody = data.rows
       .map(
         (row) =>
           `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`
@@ -59,7 +73,9 @@ export async function GET(
 </head>
 <body>
 <table id="dse-data" border="1">
-<caption>${esc(label)} (scraped ${esc(table.scrapedAt)})</caption>
+<caption>${esc(label)}${full ? " (full export)" : ""} (scraped ${esc(
+      data.scrapedAt
+    )})</caption>
 <thead>${thead}</thead>
 <tbody>${tbody}</tbody>
 </table>
