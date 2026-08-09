@@ -69,11 +69,14 @@ src/
 
     api/
       prices/[view]/route.ts   # Scrape a price board → JSON
+      table/[view]/route.ts    # Same board → plain HTML <table> for Excel (§6a)
       industry/route.ts        # Sector list, or one sector's table → JSON
       company/[code]/route.ts  # Company detail → JSON
       companies/route.ts       # All trading codes (typeahead source) → JSON
       export/route.ts          # Enriched CSV/Excel/PDF file download
       health/route.ts          # { status: "ok" } — deploy health check
+
+  middleware.ts                # Excel UA on /prices/[view] → rewrite to /api/table (§6a)
 
   components/
     providers.tsx              # React Query QueryClientProvider
@@ -196,6 +199,33 @@ union over `source`). Invalid input → `400`; scrape failure → `502`.
 
 `export/route.ts` is the most involved (see §8). `export` sets `maxDuration = 300` for
 platforms that honour it.
+
+**`table/[view]/route.ts`** returns a **plain server‑rendered HTML `<table>`** (no JS) for
+Excel "From Web" / Power Query — see §6a. Same 30s cache and `priceViewSchema` validation
+as the JSON `prices/[view]` route; responds `no-store` so Excel Refresh always re‑pulls.
+
+---
+
+## 6a. Excel "From Web" / Power Query integration
+
+Excel's **From Web** connector cannot read the React price pages: they render the table
+client‑side, so Excel sees an empty HTML shell. Two pieces fix this:
+
+- **`app/api/table/[view]/route.ts`** — emits a real `<table id="dse-data">` directly in
+  the initial HTML (headers + rows escaped), which Excel/Power Query can detect and parse.
+- **`middleware.ts`** (`matcher: "/prices/:view"`) — when a request to `/prices/<view>`
+  looks like Excel (user‑agent matches `Mashup|Microsoft.Data|MSIE|Trident|PowerQuery|Excel|Office`)
+  it **rewrites** to `/api/table/<view>`. Browsers get the normal React page; Excel gets
+  the table. This lets the client paste the **same URL they browse**.
+
+**Client workflow:** Excel → Data → From Web → paste
+`https://<host>/prices/<view>` → load table `dse-data` → thereafter just **Data → Refresh
+All**. All 10 views work (`latest, change, value, volume, ltp, group, alpha, treasury,
+sme, atb`).
+
+**Fallback:** user‑agent sniffing is best‑effort. If a client's Excel isn't detected,
+append **`?format=excel`** (`/prices/<view>?format=excel`) — the middleware forces the
+table regardless of user‑agent.
 
 ---
 

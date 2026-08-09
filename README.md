@@ -31,6 +31,10 @@ is fresh from DSE.
   - **PDF** carries the same columns in a scaled landscape layout (except on the Share
     Prices page, where PDF is disabled).
   - Every export shows a running timer and can be **cancelled** mid‑run.
+- **Excel "From Web" (live refresh)** — paste a price URL (e.g.
+  `/prices/latest`) into Excel's **Data → From Web**; middleware serves a plain HTML
+  `<table>` to Excel so it can auto‑detect the data and **Refresh** it on demand. Add
+  `?format=excel` if Excel isn't auto‑detected. See DOCS §6a.
 - **Responsive** — desktop nav collapses to a left slide‑in **sidebar drawer** on mobile.
 
 ---
@@ -83,7 +87,8 @@ All routes are dynamic (scraped at request time).
 
 | Route | Purpose |
 |---|---|
-| `GET /api/prices/[view]` | A price board. `view` ∈ `latest, change, value, volume, ltp, group, alpha, treasury` |
+| `GET /api/prices/[view]` | A price board. `view` ∈ `latest, change, value, volume, ltp, group, alpha, treasury, sme, atb` |
+| `GET /api/table/[view]` | Same board as a plain HTML `<table>` for Excel "From Web" (auto-served on `/prices/[view]` for Excel requests) |
 | `GET /api/industry` | List of sectors |
 | `GET /api/industry?area=<id>` | One sector's price table |
 | `GET /api/company/[code]` | Company detail, e.g. `/api/company/GP` |
