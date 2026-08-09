@@ -219,15 +219,23 @@ client‑side, so Excel sees an empty HTML shell. The client should be able to p
 - **`app/api/table/[view]/route.ts`** — emits a real `<table id="dse-data">` directly in
   the initial HTML (headers + rows escaped), which Excel/Power Query detects and parses.
 - **`middleware.ts`** (`matcher: "/prices/:view"`) — decides page‑vs‑table by detecting
-  *real browsers* instead of fingerprinting Excel. Every browser request (top‑level page
-  load **and** Next.js in‑app RSC/prefetch fetches) carries `Sec-Fetch-*` headers; Excel /
-  Power Query / other HTTP clients send none. So:
-  - **Has a browser signal** (`sec-fetch-*`, `rsc`, `next-router-*`) → normal React page.
-  - **No browser signal** → **rewrite** to `/api/table/<view>` with `x-dse-full: 1`, i.e.
-    the **full enriched export** table (matches the Export button).
+  *real browser page loads* instead of fingerprinting Excel. A genuine top‑level browser
+  navigation sends **`Sec-Fetch-Mode: navigate`**; Next.js in‑app navigation/prefetch sends
+  RSC headers. Excel "From Web" / Power Query does a plain HTTP fetch (mode `cors`/`no-cors`,
+  no RSC header). So:
+  - **`Sec-Fetch-Mode: navigate`** or an RSC/`next-router-*` header → normal React page.
+  - **Otherwise** (incl. Excel) → **rewrite** to `/api/table/<view>` with `x-dse-full: 1`,
+    i.e. the **full enriched export** table (matches the Export button).
 
-  (Query params added during a rewrite aren't visible to the handler, so the enriched flag
-  is passed as the `x-dse-full` request header rather than `?full=1`.)
+  Important nuances discovered in testing:
+  - Excel *does* send some `sec-fetch-*` headers, so we match `navigate` **specifically**,
+    not the mere presence of `sec-fetch-*`.
+  - Next.js strips the `RSC`/`next-router-*` headers before middleware sees them, so in‑app
+    soft navigation to `/prices/<view>` is rewritten to the table; the router then detects
+    the non‑flight response and falls back to a full page load (which sends `navigate` →
+    the React page). Net effect: in‑app nav still works, just as a hard reload.
+  - Query params added during a rewrite aren't visible to the handler, so the enriched flag
+    is passed as the `x-dse-full` request header rather than `?full=1`.
 
 **Client workflow:** Excel → Data → From Web → paste `https://<host>/prices/<view>` → load
 table `dse-data` → thereafter just **Data → Refresh All**. All 10 views work (`latest,
