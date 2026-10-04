@@ -61,7 +61,7 @@ export async function companyToExcel(detail: CompanyDetail): Promise<Buffer> {
 
   const h = detail.headline;
   const summary = ws.addRow([
-    `${h.sector} · LTP ${h.lastPrice} · ${h.change} (${h.changePct})`,
+    `${h.sector} · LTP ${h.lastPrice} · ${h.change}${h.changePct ? ` (${h.changePct})` : ""}`,
   ]);
   ws.mergeCells(summary.number, 1, summary.number, 2);
   summary.font = { color: { argb: "FF6B7280" } };

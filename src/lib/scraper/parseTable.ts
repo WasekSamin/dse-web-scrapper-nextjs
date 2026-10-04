@@ -65,6 +65,61 @@ export function extractCode(href: string): string | null {
   return m ? decodeURIComponent(m[1]).trim() : null;
 }
 
+/**
+ * Read the label/value pairs from one row of a company page's #company table.
+ *
+ * Labels are <th> cells and each value is the cell right after its label. SME
+ * and ATB pages split some labels over two rows with rowspan, so a row can
+ * start with a value that belongs to the label above, e.g. Change's percent:
+ *   <tr><th rowspan="2">Change*</th><td>1.2</td><th>Day's Value</th><td>0.06</td></tr>
+ *   <tr><td>4.40%</td><th>52 Weeks' Moving Range</th><td>27.20 - 54.00</td></tr>
+ * Those leading cells are returned as `carry`, and a pair whose label spans
+ * rows is flagged `spansRows` so the caller can join the carry onto it. Rows
+ * with no <th> fall back to pairing cells two at a time.
+ */
+export function rowFields(
+  $: cheerio.CheerioAPI,
+  tr: Parameters<cheerio.CheerioAPI>[0]
+): { carry: string; pairs: { label: string; value: string; spansRows?: boolean }[] } {
+  const cells = $(tr)
+    .children()
+    .map((_, c) => ({
+      isLabel: c.type === "tag" && c.name === "th",
+      spansRows: Number($(c).attr("rowspan") ?? 1) > 1,
+      text: cleanText($(c).text()),
+    }))
+    .get();
+  const pairs: { label: string; value: string; spansRows?: boolean }[] = [];
+  const add = (label: string, value: string, spansRows = false) => {
+    if (label && value && /[a-zA-Z]/.test(label)) {
+      pairs.push({
+        label: label.replace(/[:*]+$/, "").trim(),
+        value,
+        ...(spansRows && { spansRows }),
+      });
+    }
+  };
+
+  const firstLabel = cells.findIndex((c) => c.isLabel);
+  if (firstLabel === -1) {
+    for (let k = 0; k + 1 < cells.length; k += 2) add(cells[k].text, cells[k + 1].text);
+    return { carry: "", pairs };
+  }
+
+  const carry = cells
+    .slice(0, firstLabel)
+    .map((c) => c.text)
+    .filter((t) => t && t !== "-") // "-" is DSE's "no value" placeholder
+    .join(" ");
+  for (let k = firstLabel; k < cells.length; k++) {
+    if (cells[k].isLabel && k + 1 < cells.length && !cells[k + 1].isLabel) {
+      add(cells[k].text, cells[k + 1].text, cells[k].spansRows);
+      k++;
+    }
+  }
+  return { carry, pairs };
+}
+
 /** Collapse whitespace/nbsp and trim. */
 export function cleanText(s: string): string {
   return s.replace(/ /g, " ").replace(/\s+/g, " ").trim();

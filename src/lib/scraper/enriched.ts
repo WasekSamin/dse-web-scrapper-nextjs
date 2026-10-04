@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { fetchHtml } from "./client";
-import { cleanText } from "./parseTable";
+import { cleanText, rowFields } from "./parseTable";
 import { cached } from "@/lib/cache";
 import { MARKETS, type Market } from "@/lib/markets";
 
@@ -28,17 +28,7 @@ export interface EnrichedRow {
 function fieldMap($: cheerio.CheerioAPI): Record<string, string> {
   const map: Record<string, string> = {};
   $("#company tr").each((_, tr) => {
-    const cells = $(tr)
-      .children()
-      .map((__, c) => cleanText($(c).text()))
-      .get();
-    for (let k = 0; k + 1 < cells.length; k += 2) {
-      const label = cells[k];
-      const value = cells[k + 1];
-      if (label && value && /[a-zA-Z]/.test(label)) {
-        map[label.replace(/[:*]+$/, "")] = value;
-      }
-    }
+    for (const { label, value } of rowFields($, tr).pairs) map[label] = value;
   });
   return map;
 }

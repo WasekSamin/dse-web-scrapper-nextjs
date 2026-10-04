@@ -9,7 +9,7 @@ for the quick "what/how to run" summary.
 ## 1. What the app does
 
 The Dhaka Stock Exchange publishes live share prices and per‑company data on
-[dsebd.org](https://www.dsebd.org) as plain HTML pages — there is no public API. This
+[old.dsebd.org](https://old.dsebd.org) as plain HTML pages — there is no public API. This
 app **scrapes those pages on demand**, parses the HTML into structured data, renders it
 in a modern UI, and produces downloadable **CSV / Excel / PDF** exports.
 
@@ -92,7 +92,8 @@ src/
   lib/
     scraper/
       client.ts                # axios instance (browser UA, relaxed TLS, retry)
-      parseTable.ts            # Generic <table.shares-table> → {headers, rows, codes}
+      parseTable.ts            # Generic <table.shares-table> → {headers, rows, codes}; rowFields()
+      parseTable.test.ts       # Unit tests for rowFields (`npm test`)
       prices.ts                # 8 price views → getPriceTable()
       industry.ts              # Sector list + one sector's table
       company.ts               # displayCompany.php → grouped detail + headline
@@ -135,8 +136,8 @@ Columns: `# · TRADING CODE · LTP · HIGH · LOW · CLOSEP · YCP · CHANGE · 
 VALUE (mn) · VOLUME` (~396 rows). The 8 views map to 8 URLs in `lib/views.ts`.
 
 ### Group B — sector board (`ltp_industry.php?area=<id>`)
-Same table but the header row lives **directly in the table (no `<thead>`)** and adds
-`LTY` and `OAP` columns. The sector name is in the page title
+Same table but the header row lives **directly in the table (no `<thead>`)** and shows
+`OAP*` where the price boards show `YCP*`. The sector name is in the page title
 (`… for Business Area: <NAME> on …`). The full sector list is scraped from
 `by_industrylisting.php` (which links each sector via `companylistbyindustry.php?industryno=<id>`,
 matching the `area` id).
@@ -146,6 +147,14 @@ One big `#company` table with label/value rows (Last Trading Price, Market Cap, 
 Capital, EPS, Sector, dividends…), followed by yearly EPS/P‑E matrices, and a
 **shareholding‑percentage** block (Sponsor/Director, Govt, Institute, Foreign, Public)
 for up to 3 periods. Full company name appears as `Company Name: <…>`.
+
+Labels are `<th>` cells, each followed by its value `<td>`. The SME and ATB sites differ
+from Main in one way: `Change*` has `rowspan="2"`, with the amount in its row and the
+percent as the **first cell of the next row** (`<td>4.40%</td><th>52 Weeks' Moving
+Range</th>…`). Reading cells strictly in pairs would mis-align that row, so
+`rowFields()` pairs each `<th>` with the cell after it and returns leading cells as a
+`carry` for the row-spanning label. For a stock with no trade today DSE shows no number
+(`- -` on Main, `- -100.00%` on SME/ATB); `company.ts` turns that into a plain `-`.
 
 ### Site quirks (critical)
 - **Broken TLS chain** → the HTTP client uses an `https.Agent({ rejectUnauthorized: false })`
@@ -169,7 +178,7 @@ Both are handled in `lib/scraper/client.ts`.
 - **`industry.ts`** — `getIndustries()` (sector list, cached 1h) and
   `getIndustryTable(area)` (table + sector name).
 - **`company.ts`** — `getCompany(code)`:
-  1. flattens the `#company` label/value rows,
+  1. flattens the `#company` label/value rows (via `rowFields`, see Group C),
   2. splits the combined `Change` cell into `Change` + `% Change`,
   3. distributes fields into ordered **sections** (Price, Trading Activity, Market Cap &
      Capital, Dividend & Reserves, Company Profile, Filings & Links) via label‑matching

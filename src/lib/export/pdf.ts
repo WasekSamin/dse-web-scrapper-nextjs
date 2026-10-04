@@ -114,7 +114,7 @@ export async function companyToPdf(detail: CompanyDetail): Promise<Buffer> {
   const content: any[] = [
     { text: `${detail.name} (${detail.code})`, style: "title" },
     {
-      text: `${h.sector}   ·   LTP ${h.lastPrice}   ·   ${h.change} (${h.changePct})`,
+      text: `${h.sector}   ·   LTP ${h.lastPrice}   ·   ${h.change}${h.changePct ? ` (${h.changePct})` : ""}`,
       style: "hero",
     },
     {

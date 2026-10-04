@@ -1,7 +1,7 @@
 # DSE Web Scrapper
 
 A [Next.js](https://nextjs.org/) app that scrapes **live** share‑price data from the
-Dhaka Stock Exchange ([dsebd.org](https://www.dsebd.org)), presents it in a clean,
+Dhaka Stock Exchange ([old.dsebd.org](https://old.dsebd.org)), presents it in a clean,
 responsive UI, and lets you **export any table as CSV, Excel, or PDF** — including an
 enriched export that mirrors DSE's own detailed file.
 
@@ -73,6 +73,7 @@ Other scripts:
 
 ```bash
 npm run lint       # eslint
+npm test           # parser unit tests (Node's built-in runner; Node 22.18+)
 npx tsc --noEmit   # type-check
 ```
 

@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { fetchHtml } from "./client";
-import { cleanText } from "./parseTable";
+import { cleanText, rowFields } from "./parseTable";
 import { cached } from "@/lib/cache";
 import { MARKETS, type Market } from "@/lib/markets";
 import type {
@@ -88,6 +88,8 @@ export function getCompany(
     // 1) Pull a flat, ordered list of label/value pairs from the overview rows.
     const flat: CompanyField[] = [];
     let financialsStarted = false;
+    // The last field whose label spans into the next row (see rowFields).
+    let spanning: CompanyField | null = null;
 
     table.find("tr").each((_, tr) => {
       const $tr = $(tr);
@@ -111,12 +113,14 @@ export function getCompany(
           }
           return;
         }
-        for (let k = 0; k + 1 < cells.length; k += 2) {
-          const label = cells[k];
-          const value = cells[k + 1];
-          if (label && value && /[a-zA-Z]/.test(label)) {
-            flat.push({ label: label.replace(/[:*]+$/, ""), value });
-          }
+        const { carry, pairs } = rowFields($, tr);
+        // A rowspan label's second value (SME/ATB Change %) joins that label.
+        if (carry && spanning) spanning.value = `${spanning.value} ${carry}`;
+        spanning = null;
+        for (const { label, value, spansRows } of pairs) {
+          const field = { label, value };
+          flat.push(field);
+          if (spansRows) spanning = field;
         }
       } else if (/Details of Financial|Price Sensitive|Listing Year/i.test(first)) {
         if (cells[1]) flat.push({ label: first.replace(/[:*]+$/, ""), value: cells[1] });
@@ -131,6 +135,12 @@ export function getCompany(
         if (m) {
           splitFlat.push({ label: "Change", value: signed(m[1]) });
           splitFlat.push({ label: "% Change", value: signedPct(m[2]) });
+          continue;
+        }
+        // No trade today: DSE shows no number ("- -" on Main, "- -100.00%" on
+        // SME/ATB, where the percent is meaningless). Show a plain "-".
+        if (!/^-?[\d.]/.test(f.value)) {
+          splitFlat.push({ label: "Change", value: "-" });
           continue;
         }
       }
@@ -157,7 +167,7 @@ export function getCompany(
       lastPrice: find(/last trading price/i) || find(/closing price/i),
       change,
       changePct: find(/% change/i),
-      direction: change.startsWith("-")
+      direction: /^-[\d.]/.test(change)
         ? "down"
         : /[1-9]/.test(change)
           ? "up"

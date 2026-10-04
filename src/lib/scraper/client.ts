@@ -16,7 +16,7 @@ const httpsAgent = new https.Agent({
 });
 
 const client: AxiosInstance = axios.create({
-  baseURL: "https://www.dsebd.org",
+  baseURL: "https://old.dsebd.org",
   timeout: 20_000,
   httpsAgent,
   headers: {
